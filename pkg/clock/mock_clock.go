@@ -18,12 +18,14 @@ func NewMockClock(start time.Time) *MockClock {
 	}
 }
 
+// Now returns the mock's current time. It does not advance on its own.
 func (m *MockClock) Now() time.Time {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.currentTime
 }
 
+// Since returns the mock's current time minus t.
 func (m *MockClock) Since(t time.Time) time.Duration {
 	m.mu.Lock()
 	defer m.mu.Unlock()
