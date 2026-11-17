@@ -1,0 +1,3 @@
+{"v":1,"type":"session.started","ts":"2026-11-18T01:02:03.000000004Z","session_id":"s-1","issue_id":"ISS-9","phase":"plan","data":{"a":"x","b":2}}
+{"v":1,"type":"tool.finished","ts":"2026-11-18T01:02:04Z","session_id":"s-1","data":{"ok":true,"tool":"git.push"}}
+{"v":1,"type":"session.status","ts":"2026-11-18T01:02:05Z","session_id":"s-1"}
