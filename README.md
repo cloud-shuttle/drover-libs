@@ -1,8 +1,8 @@
 # drover-libs
 
-![Status: stale](https://img.shields.io/badge/status-stale-d29922)
+![Status: active](https://img.shields.io/badge/status-active-2ea44f)
 
-> **Status, checked 18 Nov 2026: STALE.** Tiny shared Go module, today only `pkg/clock`. Last code change 15 May 2026. Becomes the home of `pkg/telemetry` and `pkg/sessionevent` in M1.
+> **Status, checked 18 Nov 2026: ACTIVE.** Shared Go module: `pkg/clock`, plus `pkg/telemetry` and `pkg/sessionevent` for M1. v0.1.0 prep merged 18 Nov 2026 (#10); not tagged yet.
 >
 > **Clean-clone check:** `go build ./...` and `go test -short ./...` pass. No version tag yet, so consumers use `replace` or a vendored copy.
 >
@@ -17,8 +17,10 @@ Shared Go libraries for the [Drover](https://github.com/cloud-shuttle) ecosystem
 | Path | Purpose |
 |------|---------|
 | `pkg/clock` | `Clock` interface, `RealClock`, and `MockClock` for deterministic tests |
+| `pkg/telemetry` | One OpenTelemetry bootstrap: OTLP export, W3C propagation, parent-based sampling, `drover.*` correlation IDs on every span, GenAI span helpers |
+| `pkg/sessionevent` | Session event schema v1 (org ADR-003), wire-compatible with the copies in `drover` and `drover-code` |
 
-Planned in M1 (not built yet): `pkg/telemetry` (one OpenTelemetry bootstrap with Drover attribute keys) and `pkg/sessionevent` (the session event schema now duplicated in `drover` and `drover-code`). See [ROADMAP.md](ROADMAP.md).
+See [CHANGELOG.md](CHANGELOG.md) for what each version adds and [ROADMAP.md](ROADMAP.md) for what is next.
 
 ## Usage
 
@@ -28,6 +30,24 @@ import "github.com/cloud-shuttle/drover-libs/pkg/clock"
 c := clock.RealClock{}
 _ = c.Now()
 ```
+
+Telemetry, once in `main`:
+
+```go
+import "github.com/cloud-shuttle/drover-libs/pkg/telemetry"
+
+shutdown, err := telemetry.Setup(ctx, telemetry.ConfigFromEnv("drover-kelpies", version))
+if err != nil {
+	return err
+}
+defer shutdown(context.Background())
+
+ctx = telemetry.WithIDs(ctx, telemetry.IDs{TenantID: tenant, SessionID: session})
+ctx, span := telemetry.StartChat(ctx, "drover-gateway", model)
+defer func() { telemetry.End(span, err) }()
+```
+
+Export turns on when `OTEL_EXPORTER_OTLP_ENDPOINT` (or `DROVER_OTEL_ENDPOINT`) is set. Propagation is always on, so a service with export off still passes `traceparent` through.
 
 ## Development
 
