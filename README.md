@@ -19,6 +19,7 @@ Shared Go libraries for the [Drover](https://github.com/cloud-shuttle) ecosystem
 | `pkg/clock` | `Clock` interface, `RealClock`, and `MockClock` for deterministic tests |
 | `pkg/telemetry` | One OpenTelemetry bootstrap: OTLP export, W3C propagation, parent-based sampling, `drover.*` correlation IDs on every span, GenAI span helpers |
 | `pkg/sessionevent` | Session event schema v1 (org ADR-003), wire-compatible with the copies in `drover` and `drover-code` |
+| `pkg/pgpool` | pgx pool constructor: each pool is `Pooled` or `Session`; Pooled pools on PlanetScale go through PgBouncer (6432), every pool gets an explicit small `MaxConns` |
 
 See [CHANGELOG.md](CHANGELOG.md) for what each version adds and [ROADMAP.md](ROADMAP.md) for what is next.
 
@@ -46,6 +47,20 @@ ctx = telemetry.WithIDs(ctx, telemetry.IDs{TenantID: tenant, SessionID: session}
 ctx, span := telemetry.StartChat(ctx, "drover-gateway", model)
 defer func() { telemetry.End(span, err) }()
 ```
+
+Postgres pools, one per kind of connection:
+
+```go
+import "github.com/cloud-shuttle/drover-libs/pkg/pgpool"
+
+// App queries: on a *.horizon.psdb.cloud host this goes to PgBouncer on 6432.
+app, err := pgpool.New(ctx, os.Getenv("DATABASE_URL"), pgpool.Pooled)
+
+// DBOS system DB, LISTEN, session advisory locks, migrations: always direct (5432).
+sys, err := pgpool.New(ctx, os.Getenv("DATABASE_URL"), pgpool.Session)
+```
+
+`DROVER_PG_POOLER=auto|off|force` controls PlanetScale detection (`off` is the kill switch). `MaxConns` precedence: `pgpool.WithMaxConns`, then `pool_max_conns` in the URL, then the mode default (Pooled 3, Session 2). Pooled pools on 6432 default to pgx's `QueryExecModeCacheDescribe`. See the package doc for the edge cases and the connection budget.
 
 Export turns on when `OTEL_EXPORTER_OTLP_ENDPOINT` (or `DROVER_OTEL_ENDPOINT`) is set. Propagation is always on, so a service with export off still passes `traceparent` through.
 
