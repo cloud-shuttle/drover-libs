@@ -2,6 +2,16 @@
 
 All notable changes to `github.com/cloud-shuttle/drover-libs`. This module follows [Semantic Versioning](https://semver.org/); while the major version is 0, a minor bump may change an API and a patch bump never does.
 
+## Unreleased
+
+### Fixed
+
+- `pkg/pgpool`: PlanetScale detection now also matches regional Postgres endpoints (`*.pg.psdb.cloud`, for example `aws-ap-southeast-2-1.pg.psdb.cloud`). Before, only `*.horizon.psdb.cloud` matched, so `Pooled` pools on a regional host stayed on direct port 5432 instead of PgBouncer on 6432, using up `max_connections` (SQLSTATE 53300). MySQL hosts (`*.connect.psdb.cloud`) still never match.
+
+### Added
+
+- `pkg/pgpool`: `PlanetScaleRegionalHostSuffix`, `PlanetScaleHostSuffixes`, and the `DROVER_PG_HOST_SUFFIXES` environment variable (comma-separated extra host suffixes).
+
 ## Unreleased: v0.2.0 (proposed, M1 Trace spine)
 
 ### Added

@@ -12,6 +12,8 @@ const (
 	psURL   = "postgres://app.abc123:pscale_pw_x@abc123-apsoutheast2-1.horizon.psdb.cloud:5432/drover?sslmode=require"
 	psDSN   = "host=abc123-apsoutheast2-1.horizon.psdb.cloud port=5432 user=app.abc123 password='p w\\'x' dbname=drover sslmode=require"
 	localDB = "postgres://drover:drover@localhost:5432/drover?sslmode=disable"
+	// regionalURL is the shape of drover's Sydney PlanetScale URLs.
+	regionalURL = "postgres://app.rv620ndwud1e:pscale_pw_x@aws-ap-southeast-2-1.pg.psdb.cloud:5432/drover_kelpies?sslmode=require"
 )
 
 // noEnv keeps tests independent of the caller's DROVER_PG_POOLER.
@@ -53,6 +55,14 @@ func TestRouting(t *testing.T) {
 		{"pooled planetscale upper case trailing dot", "postgres://u:p@ABC-USEAST1-1.Horizon.PSDB.cloud.:5432/db", Pooled, nil, PoolerPort},
 		{"session planetscale", psURL, Session, nil, DirectPort},
 		{"session planetscale given 6432", strings.Replace(psURL, ":5432", ":6432", 1), Session, nil, DirectPort},
+		{"pooled planetscale regional", regionalURL, Pooled, nil, PoolerPort},
+		{"pooled planetscale regional dsn", "host=aws-ap-southeast-2-1.pg.psdb.cloud port=5432 user=app.x password=p dbname=d sslmode=require", Pooled, nil, PoolerPort},
+		{"pooled planetscale regional no port", "postgres://u:p@aws-us-east-1-1.pg.psdb.cloud/db", Pooled, nil, PoolerPort},
+		{"session planetscale regional", regionalURL, Session, nil, DirectPort},
+		{"session planetscale regional given 6432", strings.Replace(regionalURL, ":5432", ":6432", 1), Session, nil, DirectPort},
+		{"policy off regional", regionalURL, Pooled, []Option{WithPooler(PolicyOff)}, DirectPort},
+		{"pooled regional lookalike host", "postgres://u:p@pg.psdb.cloud.evil.example:5432/db", Pooled, nil, DirectPort},
+		{"pooled regional lookalike prefix", "postgres://u:p@aws-ap-southeast-2-1.xpg.psdb.cloud:5432/db", Pooled, nil, DirectPort},
 		{"pooled local", localDB, Pooled, nil, DirectPort},
 		{"pooled lookalike host", "postgres://u:p@horizon.psdb.cloud.evil.example:5432/db", Pooled, nil, DirectPort},
 		{"pooled mysql planetscale host", "postgres://u:p@aws.connect.psdb.cloud:5432/db", Pooled, nil, DirectPort},
@@ -237,15 +247,52 @@ func TestNewDoesNotConnect(t *testing.T) {
 
 func TestIsPlanetScaleHost(t *testing.T) {
 	for host, want := range map[string]bool{
-		"abc-useast1-1.horizon.psdb.cloud": true,
-		"horizon.psdb.cloud":               true,
-		"aws.connect.psdb.cloud":           false,
-		"localhost":                        false,
-		"xhorizon.psdb.cloud":              false,
-		"":                                 false,
+		"abc-useast1-1.horizon.psdb.cloud":    true,
+		"horizon.psdb.cloud":                  true,
+		"aws.connect.psdb.cloud":              false,
+		"aws-ap-southeast-2-1.pg.psdb.cloud":  true,
+		"AWS-AP-SOUTHEAST-2-1.PG.PSDB.CLOUD.": true,
+		"pg.psdb.cloud":                       true,
+		"xpg.psdb.cloud":                      false,
+		"psdb.cloud":                          false,
+		"localhost":                           false,
+		"xhorizon.psdb.cloud":                 false,
+		"":                                    false,
 	} {
 		if got := IsPlanetScaleHost(host); got != want {
 			t.Errorf("IsPlanetScaleHost(%q) = %v, want %v", host, got, want)
+		}
+	}
+}
+
+func TestEnvHostSuffixes(t *testing.T) {
+	lookup := func(v string) Option {
+		return WithLookupEnv(func(k string) (string, bool) {
+			if k == EnvHostSuffixes {
+				return v, true
+			}
+			return "", false
+		})
+	}
+	const private = "postgres://u:p@db.vpce.internal:5432/db"
+	for _, c := range []struct {
+		env  string
+		dsn  string
+		port uint16
+	}{
+		{"", private, DirectPort},
+		{".vpce.internal", private, PoolerPort},
+		{" other.example , .vpce.internal ", private, PoolerPort},
+		{",,", private, DirectPort},
+		// Built-in suffixes still apply when the variable is set.
+		{".vpce.internal", regionalURL, PoolerPort},
+	} {
+		cfg, err := Config(c.dsn, Pooled, lookup(c.env))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.ConnConfig.Port != c.port {
+			t.Errorf("env %q dsn %q: port = %d, want %d", c.env, c.dsn, cfg.ConnConfig.Port, c.port)
 		}
 	}
 }
