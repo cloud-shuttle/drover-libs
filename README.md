@@ -53,14 +53,15 @@ Postgres pools, one per kind of connection:
 ```go
 import "github.com/cloud-shuttle/drover-libs/pkg/pgpool"
 
-// App queries: on a *.horizon.psdb.cloud host this goes to PgBouncer on 6432.
+// App queries: on a PlanetScale host (*.horizon.psdb.cloud or *.pg.psdb.cloud)
+// this goes to PgBouncer on 6432.
 app, err := pgpool.New(ctx, os.Getenv("DATABASE_URL"), pgpool.Pooled)
 
 // DBOS system DB, LISTEN, session advisory locks, migrations: always direct (5432).
 sys, err := pgpool.New(ctx, os.Getenv("DATABASE_URL"), pgpool.Session)
 ```
 
-`DROVER_PG_POOLER=auto|off|force` controls PlanetScale detection (`off` is the kill switch). `MaxConns` precedence: `pgpool.WithMaxConns`, then `pool_max_conns` in the URL, then the mode default (Pooled 3, Session 2). Pooled pools on 6432 default to pgx's `QueryExecModeCacheDescribe`. See the package doc for the edge cases and the connection budget.
+`DROVER_PG_POOLER=auto|off|force` controls PlanetScale detection (`off` is the kill switch), and `DROVER_PG_HOST_SUFFIXES` adds comma-separated host suffixes to detect. `MaxConns` precedence: `pgpool.WithMaxConns`, then `pool_max_conns` in the URL, then the mode default (Pooled 3, Session 2). Pooled pools on 6432 default to pgx's `QueryExecModeCacheDescribe`. See the package doc for the edge cases and the connection budget.
 
 Export turns on when `OTEL_EXPORTER_OTLP_ENDPOINT` (or `DROVER_OTEL_ENDPOINT`) is set. Propagation is always on, so a service with export off still passes `traceparent` through.
 

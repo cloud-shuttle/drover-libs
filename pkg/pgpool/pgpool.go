@@ -45,8 +45,19 @@ const (
 	maxDefaultMaxConns     int32 = 4
 )
 
-// PlanetScaleHostSuffix is the documented PlanetScale Postgres host suffix.
+// PlanetScaleHostSuffix is the documented per-database PlanetScale Postgres
+// host suffix ({id+region}.horizon.psdb.cloud).
 const PlanetScaleHostSuffix = ".horizon.psdb.cloud"
+
+// PlanetScaleRegionalHostSuffix is the suffix of PlanetScale's regional
+// Postgres endpoints ({provider}-{region}-{n}.pg.psdb.cloud, for example
+// aws-ap-southeast-2-1.pg.psdb.cloud), which route by the {role}.{branch_id}
+// username and serve PgBouncer on 6432 like the per-database hosts.
+const PlanetScaleRegionalHostSuffix = ".pg.psdb.cloud"
+
+// PlanetScaleHostSuffixes are the host suffixes auto detection matches.
+// PlanetScale MySQL hosts (*.connect.psdb.cloud) are deliberately excluded.
+var PlanetScaleHostSuffixes = []string{PlanetScaleHostSuffix, PlanetScaleRegionalHostSuffix}
 
 // New parses databaseURL, applies the mode's routing and limits, and opens a
 // pool. databaseURL may be a postgres:// URL or a key=value DSN.

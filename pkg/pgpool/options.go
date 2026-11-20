@@ -11,6 +11,11 @@ import (
 // EnvPooler is the environment variable that sets the pooler policy.
 const EnvPooler = "DROVER_PG_POOLER"
 
+// EnvHostSuffixes is the environment variable with extra comma-separated host
+// suffixes (or exact hosts) to treat as PlanetScale, in addition to
+// PlanetScaleHostSuffixes and WithHostSuffixes.
+const EnvHostSuffixes = "DROVER_PG_HOST_SUFFIXES"
+
 // Policy controls PlanetScale detection.
 type Policy string
 
@@ -76,9 +81,16 @@ func WithLookupEnv(f func(string) (string, bool)) Option {
 }
 
 func resolveOptions(opts []Option) (options, error) {
-	o := options{lookupEnv: os.LookupEnv, suffixes: []string{PlanetScaleHostSuffix}}
+	o := options{lookupEnv: os.LookupEnv, suffixes: append([]string(nil), PlanetScaleHostSuffixes...)}
 	for _, opt := range opts {
 		opt(&o)
+	}
+	if v, ok := o.lookupEnv(EnvHostSuffixes); ok {
+		for _, s := range strings.Split(v, ",") {
+			if s = strings.TrimSpace(s); s != "" {
+				o.suffixes = append(o.suffixes, s)
+			}
+		}
 	}
 	if !o.policySet {
 		o.policy = PolicyAuto
@@ -93,10 +105,10 @@ func resolveOptions(opts []Option) (options, error) {
 	return o, fmt.Errorf("pgpool: invalid pooler policy %q (want auto, off or force)", o.policy)
 }
 
-// IsPlanetScaleHost reports whether host matches the documented PlanetScale
-// Postgres host suffix.
+// IsPlanetScaleHost reports whether host matches a PlanetScale Postgres host
+// suffix (PlanetScaleHostSuffixes).
 func IsPlanetScaleHost(host string) bool {
-	return hasSuffix(host, []string{PlanetScaleHostSuffix})
+	return hasSuffix(host, PlanetScaleHostSuffixes)
 }
 
 func (o options) isPlanetScale(host string) bool {

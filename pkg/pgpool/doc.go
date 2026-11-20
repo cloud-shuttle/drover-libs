@@ -20,10 +20,15 @@
 // PlanetScale documents Postgres hostnames as {id+region}.horizon.psdb.cloud
 // (https://planetscale.com/docs/postgres/connecting/quickstart) and the local
 // PgBouncer as "the same credentials as a direct connection, but port 6432"
-// (https://planetscale.com/docs/postgres/connecting/pgbouncer). A host matches
-// when it ends in ".horizon.psdb.cloud" (case-insensitive). Private
-// connectivity endpoints have other names: add them with WithHostSuffixes, or
-// set the policy to force.
+// (https://planetscale.com/docs/postgres/connecting/pgbouncer). Connection
+// strings can also use a regional endpoint such as
+// aws-ap-southeast-2-1.pg.psdb.cloud, which routes by the {role}.{branch_id}
+// username; drover's Sydney branch is reached that way. A host matches when it
+// ends in ".horizon.psdb.cloud" or ".pg.psdb.cloud" (case-insensitive).
+// PlanetScale MySQL hosts (*.connect.psdb.cloud) never match. Private
+// connectivity endpoints have other names: add them with WithHostSuffixes or
+// the comma-separated DROVER_PG_HOST_SUFFIXES environment variable, or set the
+// policy to force.
 //
 // The policy comes from WithPooler, else the DROVER_PG_POOLER environment
 // variable, else auto:
