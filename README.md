@@ -20,6 +20,7 @@ Shared Go libraries for the [Drover](https://github.com/cloud-shuttle) ecosystem
 | `pkg/telemetry` | One OpenTelemetry bootstrap: OTLP export, W3C propagation, parent-based sampling, `drover.*` correlation IDs on every span, GenAI span helpers |
 | `pkg/sessionevent` | Session event schema v1 (org ADR-003), wire-compatible with the copies in `drover` and `drover-code` |
 | `pkg/pgpool` | pgx pool constructor: each pool is `Pooled` or `Session`; Pooled pools on PlanetScale go through PgBouncer (6432), every pool gets an explicit small `MaxConns` |
+| `pkg/dbosboot` | DBOS system-database bootstrap for the DBOS runtime owners (Cloud, Kelpies, the `drover` CLI): a capped (default 3) direct `Session` pool that stays on 5432 even on PlanetScale, plus the matching `dbos.Config`. Targets `dbos-transact-golang` v0.15.0 |
 
 See [CHANGELOG.md](CHANGELOG.md) for what each version adds and [ROADMAP.md](ROADMAP.md) for what is next.
 
@@ -63,16 +64,21 @@ sys, err := pgpool.New(ctx, os.Getenv("DATABASE_URL"), pgpool.Session)
 
 `DROVER_PG_POOLER=auto|off|force` controls PlanetScale detection (`off` is the kill switch), and `DROVER_PG_HOST_SUFFIXES` adds comma-separated host suffixes to detect. `MaxConns` precedence: `pgpool.WithMaxConns`, then `pool_max_conns` in the URL, then the mode default (Pooled 3, Session 2). Pooled pools on 6432 default to pgx's `QueryExecModeCacheDescribe`. See the package doc for the edge cases and the connection budget.
 
-Export turns on when `OTEL_EXPORTER_OTLP_ENDPOINT` (or `DROVER_OTEL_ENDPOINT`) is set. Propagation is always on, so a service with export off still passes `traceparent` through.
+DBOS system database (LISTEN/NOTIFY and DBOS migrations need a real session, so never PgBouncer):
 
-## Development
+```go
+import "github.com/cloud-shuttle/drover-libs/pkg/dbosboot"
 
-Consumers today: `drover-cloud` and `drover-warden` (`replace ../drover-libs`, so a sibling clone is required), and `drover-muster` and `drover-gateway` (vendored copies under `third_party/drover-libs`). There is no version tag yet; tagging v0.1.0 is the first M0 step so consumers can drop `replace`.
-
-```bash
-git clone git@github.com:cloud-shuttle/drover-libs.git
-# sibling to drover-gateway:
-#   ../drover-libs
+cfg, sysPool, err := dbosboot.Config(ctx, dbosboot.Options{
+	AppName:           "drover-cloud",
+	SystemDatabaseURL: os.Getenv(dbosboot.EnvSystemDatabaseURL),
+	// Schema: "dbos_kelpies", MaxConns: 3, ApplicationName: "drover-kelpies-dbos", ...
+})
+if err != nil {
+	return err
+}
+dbosCtx, err := dbos.NewDBOSContext(ctx, cfg)
+// register workflows, dbos.Launch(dbosCtx); on exit dbos.Shutdown, then sysPool.Close().
 ```
 
-Go **1.26.2**.
+`MaxConns` 0 means 3 with `pool_max_conns` in the URL winning; an explicit `MaxConns` wins over the URL and is never below 2 (the listener holds one). `EnsureDatabase` creates a missing database through the `postgres` maintenance database, as DBOS does when it opens its own pool; leave it off on PlanetScale.
